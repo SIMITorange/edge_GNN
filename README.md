@@ -15,15 +15,17 @@ Quick start
 pip install -r requirements.txt
 ```
 2) Update `config.py` paths if your HDF5 lives elsewhere.
-3) Train:
+3) Train (GPU default; add `--device cpu` to force CPU and AMP will auto-disable):
 ```
 python train.py --data D:\...\meshgraph_data.h5
+python train.py --data D:\...\meshgraph_data.h5 --device cpu
 ```
    - Checkpoints + normalization saved under `artifacts/`.
    - TensorBoard logs under `logs/`.
 4) Inference on a specific device/sheet:
 ```
 python inference.py --group n1 --sheet 0 --checkpoint artifacts/edge_gnn.ckpt --norm artifacts/normalization.json
+python inference.py --group n1 --sheet 0 --checkpoint artifacts/edge_gnn.ckpt --norm artifacts/normalization.json --device cpu
 ```
    - Predictions saved to `outputs/inference.npy`.
 5) Visualize losses and prediction vs. truth:
@@ -61,4 +63,3 @@ Tips
 - Start with batch_size=1 for large meshes (~100k nodes). Increase workers if memory allows.
 - If gradients explode, lower `lr` or `grad_clip` in `config.py`.
 - To emphasize a specific output, adjust weights in `LossConfig` inside `config.py`.
-

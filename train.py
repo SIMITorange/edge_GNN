@@ -47,7 +47,12 @@ def main():
     if args.device:
         train_cfg.device = args.device
 
-    device = torch.device(train_cfg.device if torch.cuda.is_available() else "cpu")
+    # Device selection with CPU compatibility.
+    if train_cfg.device.lower() == "cpu":
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     set_seed(train_cfg.seed)
 
     os.makedirs(paths.artifact_dir, exist_ok=True)
@@ -131,13 +136,15 @@ def main():
         collate_fn=collate_graphs,
     )
 
+    amp_enabled = train_cfg.amp and device.type == "cuda"
+
     trainer = Trainer(
         model=model,
         loss_fn=loss_fn,
         optimizer=optimizer,
         device=device,
         log_dir=paths.log_dir,
-        amp=train_cfg.amp,
+        amp=amp_enabled,
         grad_clip=train_cfg.grad_clip,
     )
 
@@ -175,4 +182,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument("--norm", type=str, default="artifacts/normalization.json", help="Path to normalization JSON.")
     parser.add_argument("--data", type=str, default=None, help="HDF5 path override.")
     parser.add_argument("--out", type=str, default="outputs/inference.npz", help="Output .npz for predictions.")
+    parser.add_argument("--device", type=str, default=None, help="Force device: cpu or cuda.")
     return parser.parse_args()
 
 
@@ -49,8 +50,14 @@ def main():
     paths, data_cfg, model_cfg, _, train_cfg = get_default_configs()
     if args.data:
         paths.data_h5 = args.data
+    if args.device:
+        train_cfg.device = args.device
 
-    device = torch.device(train_cfg.device if torch.cuda.is_available() else "cpu")
+    # Device selection with CPU fallback.
+    if train_cfg.device.lower() == "cpu":
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     normalizer = load_normalizer(args.norm)
 
     fourier_mapper = None
