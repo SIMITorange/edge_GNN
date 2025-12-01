@@ -35,6 +35,16 @@ def _edge_total_variation(error: torch.Tensor, edge_index: torch.Tensor) -> torc
     return diff.abs().mean()
 
 
+def _laplacian_smoothness(pred: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+    """Encourage smoothness via Laplacian regularization (second-order smoothness)."""
+
+    src, dst = edge_index
+    # For each node, compute the difference between its value and neighbors
+    node_vals = pred.squeeze(-1)  # [N]
+    diff = (node_vals[src] - node_vals[dst]) ** 2
+    return diff.mean()
+
+
 def _gradient_consistency(
     pred_potential: torch.Tensor,
     pred_ex: torch.Tensor,
@@ -69,6 +79,8 @@ class CompositeLoss(nn.Module):
         relative_l1_weight: float = 0.3,
         smoothness_weight: float = 0.05,
         gradient_consistency_weight: float = 0.1,
+        l2_weight: float = 0.0,
+        curvature_weight: float = 0.0,
     ):
         super().__init__()
         self.target_order = list(target_order)
@@ -77,6 +89,8 @@ class CompositeLoss(nn.Module):
             "rel": relative_l1_weight,
             "smooth": smoothness_weight,
             "grad_consistency": gradient_consistency_weight,
+            "l2": l2_weight,
+            "curvature": curvature_weight,
         }
 
     def forward(self, pred_dict: Dict[str, torch.Tensor], target_tensor: torch.Tensor, data) -> Tuple[torch.Tensor, Dict[str, float]]:
@@ -96,6 +110,12 @@ class CompositeLoss(nn.Module):
             metrics[f"{name}/tv"] = tv.item()
 
             total_loss = total_loss + self.weights["l1"] * l1 + self.weights["rel"] * rel + self.weights["smooth"] * tv
+
+            # Add curvature regularization for extra smoothness
+            if self.weights["curvature"] > 0:
+                curv = _laplacian_smoothness(y_pred, data.edge_index)
+                metrics[f"{name}/curv"] = curv.item()
+                total_loss = total_loss + self.weights["curvature"] * curv
 
         # Physics-inspired consistency between potential and field components.
         if self.weights["grad_consistency"] > 0:
