@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import random
+from typing import cast
 
 import numpy as np
 import torch
@@ -23,6 +24,7 @@ from config import get_default_configs
 from src.data import FourierFeatureMapper, MeshGraphDataset, build_splits, collate_graphs, fit_normalizer
 from src.models import build_model
 from src.training import CompositeLoss, Trainer
+from torch_geometric.data import Data
 
 
 def set_seed(seed: int):
@@ -36,7 +38,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train edge-based GNN surrogate.")
     parser.add_argument("--data", type=str, default=None, help="Path to meshgraph_data.h5 (overrides config).")
     parser.add_argument("--device", type=str, default=None, help="cuda or cpu override.")
-    return parser.parse_args()
+    args, _ = parser.parse_known_args()
+    return args
 
 
 def main():
@@ -102,7 +105,11 @@ def main():
     val_ds.fourier_mapper = fourier_mapper
     test_ds.fourier_mapper = fourier_mapper
 
-    input_dim = len(data_cfg.input_features) + (4 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
+    # Determine input dimension from first sample to ensure correct feature count
+    # This accounts for base features + Fourier features if they are applied
+    sample_data = cast(Data, train_ds[0])
+    input_dim = int(sample_data.x.shape[1])  # type: ignore
+    
     model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
 
     loss_fn = CompositeLoss(

@@ -14,13 +14,14 @@ Usage:
 import argparse
 import os
 import pickle
-from typing import Dict, List
+from typing import Dict, List, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
 from torchinfo import summary
+from torch_geometric.data import Data
 
 from config import get_default_configs
 from src.models import build_model
@@ -134,9 +135,28 @@ def main():
         print(f"Prediction file {args.pred} not found; skipping field plots.")
 
     # Save architecture summary for documentation.
+    # Use the same input_dim calculation as train.py and inference.py
+    paths, data_cfg, model_cfg, _, _ = get_default_configs()
+    fourier_mapper = None
+    if data_cfg.use_fourier:
+        from src.data import FourierFeatureMapper
+        fourier_mapper = FourierFeatureMapper(num_features=data_cfg.fourier_features, sigma=data_cfg.fourier_sigma)
+    
+    from src.data import MeshGraphDataset
+    dataset = MeshGraphDataset(
+        h5_path=paths.data_h5,
+        target_columns=data_cfg.target_columns,
+        prediction_targets=data_cfg.prediction_targets,
+        input_features=data_cfg.input_features,
+        fourier_mapper=fourier_mapper,
+        normalizer=None,
+    )
+    sample_data = cast(Data, dataset[0])
+    input_dim = sample_data.x.shape[1]
+    
     export_model_summary(
         out_path=os.path.join(args.out, "model_summary.txt"),
-        input_dim=len(get_default_configs()[1].input_features) + 4 * get_default_configs()[1].fourier_features,
+        input_dim=input_dim,
         target_names=list(get_default_configs()[1].prediction_targets),
     )
 

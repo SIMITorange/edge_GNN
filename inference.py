@@ -13,11 +13,12 @@ Usage:
 import argparse
 import json
 import os
-from typing import Dict
+from typing import Dict, cast
 
 import numpy as np
 import torch
 from torch_geometric.loader import DataLoader
+from torch_geometric.data import Data
 
 from config import get_default_configs
 from src.data import FourierFeatureMapper, MeshGraphDataset, collate_graphs
@@ -42,7 +43,8 @@ def parse_args():
     parser.add_argument("--data", type=str, default=None, help="HDF5 path override.")
     parser.add_argument("--out", type=str, default="outputs/inference.npz", help="Output .npz for predictions.")
     parser.add_argument("--device", type=str, default=None, help="Force device: cpu or cuda.")
-    return parser.parse_args()
+    args, _ = parser.parse_known_args()
+    return args
 
 
 def main():
@@ -81,7 +83,10 @@ def main():
 
     loader = DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=collate_graphs)
 
-    input_dim = len(data_cfg.input_features) + (4 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
+    # Determine input dimension from first sample to ensure correct feature count
+    sample_data = cast(Data, dataset[0])
+    input_dim = sample_data.x.shape[1]
+    
     model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model_state"])
