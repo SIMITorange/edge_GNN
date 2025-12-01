@@ -76,7 +76,6 @@ class Trainer:
         n = max(1, len(loader))
         for k in epoch_metrics:
             epoch_metrics[k] /= n
-        epoch_metrics["loss/total"] = epoch_metrics.get("loss/total", 0.0) / n
 
         # TensorBoard logging.
         for k, v in epoch_metrics.items():

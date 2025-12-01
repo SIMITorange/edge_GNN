@@ -136,7 +136,7 @@ def main():
     # Save architecture summary for documentation.
     export_model_summary(
         out_path=os.path.join(args.out, "model_summary.txt"),
-        input_dim=len(get_default_configs()[1].input_features) + 2 * get_default_configs()[1].fourier_features,
+        input_dim=len(get_default_configs()[1].input_features) + 4 * get_default_configs()[1].fourier_features,
         target_names=list(get_default_configs()[1].prediction_targets),
     )
 

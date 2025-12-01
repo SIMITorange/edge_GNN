@@ -81,7 +81,7 @@ def main():
 
     loader = DataLoader(dataset, batch_size=1, shuffle=False, collate_fn=collate_graphs)
 
-    input_dim = len(data_cfg.input_features) + (2 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
+    input_dim = len(data_cfg.input_features) + (4 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
     model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model_state"])

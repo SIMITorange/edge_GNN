@@ -102,7 +102,7 @@ def main():
     val_ds.fourier_mapper = fourier_mapper
     test_ds.fourier_mapper = fourier_mapper
 
-    input_dim = len(data_cfg.input_features) + (2 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
+    input_dim = len(data_cfg.input_features) + (4 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
     model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
 
     loss_fn = CompositeLoss(
