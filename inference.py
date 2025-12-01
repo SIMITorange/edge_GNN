@@ -7,18 +7,24 @@ Inputs:
 Outputs:
     - Numpy arrays of predicted fields plus optional PNG visualizations (handled by tools/visualize.py)
 Usage:
-    python inference.py --group n1 --sheet 0 --checkpoint artifacts/edge_gnn.ckpt --norm artifacts/normalization.json
+    python inference.py --group n43 --sheet 0 --checkpoint artifacts/edge_gnn.ckpt --norm artifacts/normalization.json
 """
 
 import argparse
 import json
 import os
+import sys
 from typing import Dict, cast
+
+# Ensure the project root directory is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import torch
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from config import get_default_configs
 from src.data import FourierFeatureMapper, MeshGraphDataset, collate_graphs
@@ -111,8 +117,8 @@ def main():
                 target=targets,
                 pos=batch.pos.cpu().numpy(),
                 edge_index=batch.edge_index.cpu().numpy(),
-                group=batch.group,
-                sheet=batch.sheet,
+                group=batch.group.cpu().numpy() if isinstance(batch.group, torch.Tensor) else batch.group,
+                sheet=batch.sheet.cpu().numpy() if isinstance(batch.sheet, torch.Tensor) else batch.sheet,
             )
             print(f"Inference complete. Saved predictions to {args.out}")
 

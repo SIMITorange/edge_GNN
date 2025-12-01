@@ -14,7 +14,11 @@ import argparse
 import json
 import os
 import random
+import sys
 from typing import cast
+
+# Ensure the project root directory is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import torch
