@@ -8,19 +8,24 @@ Inputs:
 Outputs:
     - PNG plots saved under outputs/
 Usage:
-    python tools/visualize.py --metrics artifacts/metrics.pkl --pred outputs/inference.npy
+    python tools/visualize.py --metrics artifacts/metrics.pkl --pred outputs/inference.npz
 """
-
+import sys
 import argparse
 import os
+
+# Ensure the project root directory is in sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 import pickle
-from typing import Dict, List
+from typing import Dict, List, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from torchinfo import summary
+from torch_geometric.data import Data, Batch
 
 from config import get_default_configs
 from src.models import build_model
@@ -98,14 +103,21 @@ def plot_histograms(pred_np: Dict[str, np.ndarray], target_np: Dict[str, np.ndar
 def export_model_summary(out_path: str, input_dim: int, target_names: List[str]):
     paths, data_cfg, model_cfg, _, _ = get_default_configs()
     model = build_model(input_dim=input_dim, target_names=target_names, model_cfg=model_cfg)
-    from torch_geometric.data import Data
-
-    dummy = Data(
-        x=torch.randn((4, input_dim)),
-        edge_index=torch.tensor([[0, 1, 2, 3, 0, 2], [1, 0, 3, 2, 2, 0]], dtype=torch.long),
-        pos=torch.randn((4, 2)),
-    )
-    text = summary(model, input_data=(dummy,), verbose=0).to_string()
+    
+    # Count model parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    # Create summary text
+    text = f"Model Architecture Summary\n"
+    text += f"=" * 50 + "\n"
+    text += f"\n{str(model)}\n\n"
+    text += f"=" * 50 + "\n"
+    text += f"Total Parameters: {total_params:,}\n"
+    text += f"Trainable Parameters: {trainable_params:,}\n"
+    text += f"Input Dimension: {input_dim}\n"
+    text += f"Prediction Targets: {', '.join(target_names)}\n"
+    
     with open(out_path, "w") as f:
         f.write(text)
     print(f"Saved model summary to {out_path}")
@@ -114,9 +126,39 @@ def export_model_summary(out_path: str, input_dim: int, target_names: List[str])
 def main():
     parser = argparse.ArgumentParser(description="Plot training curves and prediction maps.")
     parser.add_argument("--metrics", type=str, default="artifacts/metrics.pkl", help="Path to metrics.pkl from training.")
-    parser.add_argument("--pred", type=str, default="outputs/inference.npy", help="Path to npy saved by inference.py.")
+    parser.add_argument("--pred", type=str, default="outputs/inference.npz", help="Path to npz saved by inference.py.")
     parser.add_argument("--out", type=str, default="outputs", help="Directory to store plots.")
+    parser.add_argument("--group", type=str, default="n43", help="Group ID for inference (e.g., n1, n43).")
+    parser.add_argument("--sheet", type=int, default=0, help="Sheet index within the group for inference.")
+    parser.add_argument("--checkpoint", type=str, default="artifacts/edge_gnn.ckpt", help="Path to model checkpoint.")
+    parser.add_argument("--norm", type=str, default="artifacts/normalization.json", help="Path to normalization JSON.")
     args = parser.parse_args()
+
+    # Auto-run inference if prediction file doesn't exist
+    if not os.path.exists(args.pred):
+        print(f"Prediction file {args.pred} not found. Running inference...")
+        try:
+            import subprocess
+            import sys
+            result = subprocess.run(
+                [sys.executable, "inference.py", 
+                 "--group", args.group, 
+                 "--sheet", str(args.sheet),
+                 "--checkpoint", args.checkpoint,
+                 "--norm", args.norm,
+                 "--out", args.pred],
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"Inference failed with error:\n{result.stderr}")
+                print("Continuing with visualization of other outputs...")
+            else:
+                print(result.stdout)
+        except Exception as e:
+            print(f"Failed to run inference: {e}")
+            print("Continuing with visualization of other outputs...")
 
     if os.path.exists(args.metrics):
         plot_losses(args.metrics, out_dir=args.out)
@@ -134,9 +176,28 @@ def main():
         print(f"Prediction file {args.pred} not found; skipping field plots.")
 
     # Save architecture summary for documentation.
+    # Use the same input_dim calculation as train.py and inference.py
+    paths, data_cfg, model_cfg, _, _ = get_default_configs()
+    fourier_mapper = None
+    if data_cfg.use_fourier:
+        from src.data import FourierFeatureMapper
+        fourier_mapper = FourierFeatureMapper(num_features=data_cfg.fourier_features, sigma=data_cfg.fourier_sigma)
+    
+    from src.data import MeshGraphDataset
+    dataset = MeshGraphDataset(
+        h5_path=paths.data_h5,
+        target_columns=data_cfg.target_columns,
+        prediction_targets=data_cfg.prediction_targets,
+        input_features=data_cfg.input_features,
+        fourier_mapper=fourier_mapper,
+        normalizer=None,
+    )
+    sample_data = cast(Data, dataset[0])
+    input_dim = sample_data.x.shape[1]
+    
     export_model_summary(
         out_path=os.path.join(args.out, "model_summary.txt"),
-        input_dim=len(get_default_configs()[1].input_features) + 2 * get_default_configs()[1].fourier_features,
+        input_dim=input_dim,
         target_names=list(get_default_configs()[1].prediction_targets),
     )
 

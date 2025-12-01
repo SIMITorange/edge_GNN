@@ -45,16 +45,16 @@ class DataConfig:
         "ElectricField_x",
         "ElectricField_y",
         "DopingConcentration",
-    )
+    ) # type: ignore
     # Outputs we want the model to regress.
     prediction_targets: List[str] = (
         "ElectrostaticPotential",
         "ElectricField_x",
         "ElectricField_y",
         "SpaceCharge",
-    )
+    ) # type: ignore
     # Node-wise input feature order produced by the dataset.
-    input_features: List[str] = ("x", "y", "doping", "vds")
+    input_features: List[str] = ("x", "y", "doping", "vds") # pyright: ignore[reportAssignmentType]
     # Fourier mapping for coordinates to help capture sharp transitions.
     fourier_features: int = 8
     fourier_sigma: float = 1.0
