@@ -95,9 +95,9 @@ def main():
         "doping": "log_standard",
         "vds": "standard",
         "ElectrostaticPotential": "standard",
-        "ElectricField_x": "robust",
-        "ElectricField_y": "robust",
-        "SpaceCharge": "robust",
+        "ElectricField_x": "log_standard",
+        "ElectricField_y": "log_standard",
+        "SpaceCharge": "log_standard",
     }
     normalizer = fit_normalizer(train_ds, strategy_map=strategy_map)
 
@@ -113,15 +113,19 @@ def main():
     # This accounts for base features + Fourier features if they are applied
     sample_data = cast(Data, train_ds[0])
     input_dim = int(sample_data.x.shape[1])  # type: ignore
-    
-    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
+    edge_dim = sample_data.edge_attr.shape[1] if hasattr(sample_data, "edge_attr") and sample_data.edge_attr is not None else getattr(model_cfg, "edge_dim", 0)
+
+    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg, edge_dim=edge_dim)
 
     loss_fn = CompositeLoss(
         target_order=data_cfg.prediction_targets,
         l1_weight=loss_cfg.l1_weight,
+        physical_l1_weight=loss_cfg.physical_l1_weight,
         relative_l1_weight=loss_cfg.relative_l1_weight,
+        relative_eps=loss_cfg.relative_eps,
         smoothness_weight=loss_cfg.smoothness_weight,
         gradient_consistency_weight=loss_cfg.gradient_consistency_weight,
+        normalizer=normalizer,
     )
 
     optimizer = torch.optim.AdamW(

@@ -92,8 +92,9 @@ def main():
     # Determine input dimension from first sample to ensure correct feature count
     sample_data = cast(Data, dataset[0])
     input_dim = sample_data.x.shape[1]
-    
-    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
+    edge_dim = sample_data.edge_attr.shape[1] if hasattr(sample_data, "edge_attr") and sample_data.edge_attr is not None else getattr(model_cfg, "edge_dim", 0)
+
+    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg, edge_dim=edge_dim)
     checkpoint = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model_state"])
     model.to(device).eval()

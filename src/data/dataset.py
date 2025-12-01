@@ -127,10 +127,18 @@ class MeshGraphDataset(Dataset):
             fourier_feats = self.fourier_mapper(pos_normed)
             feat_tensor = torch.cat([feat_tensor, fourier_feats], dim=-1)
 
+        # Edge attributes encode local geometry (relative offsets + distance/unit direction).
+        src, dst = edge_index
+        rel = pos_normed[dst] - pos_normed[src]  # [E, 2]
+        dist = torch.linalg.norm(rel, dim=-1, keepdim=True).clamp_min(1e-6)
+        dir_vec = rel / dist
+        edge_attr = torch.cat([rel, dist, 1.0 / dist, dir_vec], dim=-1)  # [E, 6]
+
         data = Data(
             x=feat_tensor,
             pos=pos,
             edge_index=edge_index,
+            edge_attr=edge_attr,
             y=target_tensor,
             num_nodes=pos.shape[0],
         )
@@ -263,4 +271,3 @@ def collate_graphs(batch: List[Data]):
     from torch_geometric.data import Batch
 
     return Batch.from_data_list(batch)
-

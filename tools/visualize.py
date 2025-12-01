@@ -100,9 +100,9 @@ def plot_histograms(pred_np: Dict[str, np.ndarray], target_np: Dict[str, np.ndar
         print(f"Saved {key} histogram to {out_path}")
 
 
-def export_model_summary(out_path: str, input_dim: int, target_names: List[str]):
+def export_model_summary(out_path: str, input_dim: int, edge_dim: int, target_names: List[str]):
     paths, data_cfg, model_cfg, _, _ = get_default_configs()
-    model = build_model(input_dim=input_dim, target_names=target_names, model_cfg=model_cfg)
+    model = build_model(input_dim=input_dim, target_names=target_names, model_cfg=model_cfg, edge_dim=edge_dim)
     
     # Count model parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -194,10 +194,12 @@ def main():
     )
     sample_data = cast(Data, dataset[0])
     input_dim = sample_data.x.shape[1]
+    edge_dim = sample_data.edge_attr.shape[1] if hasattr(sample_data, "edge_attr") and sample_data.edge_attr is not None else getattr(model_cfg, "edge_dim", 0)
     
     export_model_summary(
         out_path=os.path.join(args.out, "model_summary.txt"),
         input_dim=input_dim,
+        edge_dim=edge_dim,
         target_names=list(get_default_configs()[1].prediction_targets),
     )
 
