@@ -170,21 +170,23 @@ def main():
     )
     print(f"✓ Optimizer: AdamW(lr={train_cfg.lr}, weight_decay={train_cfg.weight_decay})")
 
+    loader_kwargs = dict(
+        num_workers=data_cfg.num_workers,
+        pin_memory=data_cfg.pin_memory,
+        persistent_workers=data_cfg.num_workers > 0,
+        collate_fn=collate_graphs,
+    )
     train_loader = DataLoader(
         train_ds,
         batch_size=train_cfg.batch_size,
         shuffle=True,
-        num_workers=data_cfg.num_workers,
-        pin_memory=data_cfg.pin_memory,
-        collate_fn=collate_graphs,
+        **loader_kwargs,
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=1,
         shuffle=False,
-        num_workers=data_cfg.num_workers,
-        pin_memory=data_cfg.pin_memory,
-        collate_fn=collate_graphs,
+        **loader_kwargs,
     )
 
     amp_enabled = train_cfg.amp and device.type == "cuda"

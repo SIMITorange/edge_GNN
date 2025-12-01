@@ -80,6 +80,8 @@ class MeshGraphDataset(Dataset):
             self.sample_index = [self.sample_index[i] for i in split_indices]
         self.fourier_mapper = fourier_mapper
         self.normalizer = normalizer
+        # Lazily opened HDF5 handle; per-worker to avoid reopening every __getitem__.
+        self._h5 = None
 
     # Dataset abstract methods ------------------------------------------------
     @property
@@ -141,6 +143,13 @@ class MeshGraphDataset(Dataset):
         return data
 
     # Internal helpers -------------------------------------------------------
+    def _ensure_h5(self):
+        """Open and cache an HDF5 handle per worker/process."""
+
+        if getattr(self, "_h5", None) is None or not getattr(self._h5, "id", None) or not self._h5.id.valid:
+            self._h5 = h5py.File(self.h5_path, "r")
+        return self._h5
+
     def _build_index(self) -> List[SampleIndex]:
         """Scan the HDF5 and enumerate all (group, sheet) pairs."""
 
@@ -159,11 +168,11 @@ class MeshGraphDataset(Dataset):
     def _load_sample(self, sample: SampleIndex) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, torch.Tensor], torch.Tensor, float]:
         """Load a single sample from disk without normalization."""
 
-        with h5py.File(self.h5_path, "r") as h5f:
-            grp = h5f[sample.group]
-            pos = torch.from_numpy(grp["pos"][:]).float()  # [N, 2]
-            edge_index = torch.from_numpy(grp["edge_index"][:]).long()  # [2, E]
-            fields = torch.from_numpy(grp["fields"][sample.sheet])  # [N, F]
+        h5f = self._ensure_h5()
+        grp = h5f[sample.group]
+        pos = torch.from_numpy(grp["pos"][:]).float()  # [N, 2]
+        edge_index = torch.from_numpy(grp["edge_index"][:]).long()  # [2, E]
+        fields = torch.from_numpy(grp["fields"][sample.sheet])  # [N, F]
 
         # Map columns.
         feat_dict: Dict[str, torch.Tensor] = {
@@ -183,6 +192,24 @@ class MeshGraphDataset(Dataset):
         feat_dict["vds"] = torch.full_like(feat_dict["x"], fill_value=vds_scalar)
 
         return pos, feat_dict, target_dict, edge_index, vds_scalar
+
+    def __getstate__(self):
+        """Drop open file handles when pickling for DataLoader workers."""
+
+        state = self.__dict__.copy()
+        state["_h5"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._h5 = None
+
+    def __del__(self):
+        try:
+            if getattr(self, "_h5", None) is not None:
+                self._h5.close()
+        except Exception:
+            pass
 
 
 def build_splits(dataset: MeshGraphDataset, train: float, val: float, seed: int = 42):

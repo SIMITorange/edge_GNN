@@ -56,23 +56,23 @@ class DataConfig:
     # Node-wise input feature order produced by the dataset.
     input_features: List[str] = ("x", "y", "doping", "vds") # pyright: ignore[reportAssignmentType]
     # Fourier mapping for coordinates to help capture sharp transitions.
-    fourier_features: int = 16  # 从 32 改回 16
-    fourier_sigma: float = 0.5  # 从 0.3 改回 0.5
+    fourier_features: int = 8  # Reduce Fourier lift width to speed up IO/computation
+    fourier_sigma: float = 0.5  # �?0.3 改回 0.5
     use_fourier: bool = True
     # Data split proportions (applied at the sheet level).
     train_split: float = 0.8
     val_split: float = 0.1
     test_split: float = 0.1
-    num_workers: int = 0  # PyG DataLoader workers; set >0 if memory allows.
-    pin_memory: bool = False
+    num_workers: int = 4  # PyG DataLoader workers; parallel HDF5 reads
+    pin_memory: bool = True
 
 
 @dataclass
 class ModelConfig:
     """Architecture hyperparameters."""
 
-    hidden_dim: int = 128  # 从 256 改为 128
-    num_layers: int = 6    # 从 10 改为 6
+    hidden_dim: int = 128  # �?256 改为 128
+    num_layers: int = 6    # �?10 改为 6
     message_passing_aggr: str = "add"  # options: add | mean | max
     dropout: float = 0.05  # Reduced from 0.1 for less regularization (more overfitting allowed)
     heads: int = 8  # Increased from 4 for more diverse decoder heads
