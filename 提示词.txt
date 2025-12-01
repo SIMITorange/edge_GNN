@@ -1,0 +1,1 @@
+当你需要执行python脚本时 要打开cmd后 激活conda环境conda activate GNN

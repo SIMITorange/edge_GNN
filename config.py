@@ -56,8 +56,8 @@ class DataConfig:
     # Node-wise input feature order produced by the dataset.
     input_features: List[str] = ("x", "y", "doping", "vds") # pyright: ignore[reportAssignmentType]
     # Fourier mapping for coordinates to help capture sharp transitions.
-    fourier_features: int = 16  # Increased from 8 for better spatial expressivity
-    fourier_sigma: float = 0.5  # Decreased from 1.0 for finer frequency detail
+    fourier_features: int = 16  # 从 32 改回 16
+    fourier_sigma: float = 0.5  # 从 0.3 改回 0.5
     use_fourier: bool = True
     # Data split proportions (applied at the sheet level).
     train_split: float = 0.8
@@ -71,8 +71,8 @@ class DataConfig:
 class ModelConfig:
     """Architecture hyperparameters."""
 
-    hidden_dim: int = 256  # Increased from 128 for better capacity
-    num_layers: int = 10   # Increased from 6 for deeper message passing
+    hidden_dim: int = 128  # 从 256 改为 128
+    num_layers: int = 6    # 从 10 改为 6
     message_passing_aggr: str = "add"  # options: add | mean | max
     dropout: float = 0.05  # Reduced from 0.1 for less regularization (more overfitting allowed)
     heads: int = 8  # Increased from 4 for more diverse decoder heads
@@ -90,14 +90,14 @@ class LossConfig:
     # Main SmoothL1 on normalized outputs - increased weight for better base fitting
     l1_weight: float = 2.0  # Increased from 1.0
     # Relative error to emphasize low-magnitude regions - increased
-    relative_l1_weight: float = 0.8  # Increased from 0.3
+    relative_l1_weight: float = 0.8  # Increased from 0.3; important for field-limited regions
     # Graph total-variation to encourage smoothness while allowing shocks
     smoothness_weight: float = 0.08  # Increased from 0.05 for better spatial consistency
     # Optional auxiliary penalty aligning ∇V with E fields when available
     gradient_consistency_weight: float = 0.15  # Increased from 0.1 for physics constraint
     # Additional loss components for overfitting
     l2_weight: float = 0.0  # No L2 regularization to allow overfitting
-    curvature_weight: float = 0.05  # Penalize high curvature for smoother fields
+    curvature_weight: float = 0.05  # Penalize high curvature for smoother fields but preserve spikes
 
 
 @dataclass
