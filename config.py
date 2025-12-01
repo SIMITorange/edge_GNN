@@ -45,16 +45,16 @@ class DataConfig:
         "ElectricField_x",
         "ElectricField_y",
         "DopingConcentration",
-    )
+    ) # type: ignore
     # Outputs we want the model to regress.
     prediction_targets: List[str] = (
         "ElectrostaticPotential",
         "ElectricField_x",
         "ElectricField_y",
         "SpaceCharge",
-    )
+    ) # type: ignore
     # Node-wise input feature order produced by the dataset.
-    input_features: List[str] = ("x", "y", "doping", "vds")
+    input_features: List[str] = ("x", "y", "doping", "vds") # pyright: ignore[reportAssignmentType]
     # Fourier mapping for coordinates to help capture sharp transitions.
     fourier_features: int = 8
     fourier_sigma: float = 1.0
@@ -71,13 +71,15 @@ class DataConfig:
 class ModelConfig:
     """Architecture hyperparameters."""
 
-    hidden_dim: int = 128
-    num_layers: int = 6
+    hidden_dim: int = 160
+    num_layers: int = 8
     message_passing_aggr: str = "add"  # options: add | mean | max
-    dropout: float = 0.1
+    dropout: float = 0.05
     heads: int = 4  # for attention-style aggregators inside decoder.
     fourier_dropout: float = 0.0
     layer_norm: bool = True
+    use_edge_attr: bool = True  # enable edge-aware message passing (NNConv)
+    edge_dim: int = 6  # expected edge_attr dimension (dx, dy, dist, inv_dist, dirx, diry)
 
 
 @dataclass
@@ -86,8 +88,11 @@ class LossConfig:
 
     # Main SmoothL1 on normalized outputs.
     l1_weight: float = 1.0
+    # L1 on de-normalized physical values to directly fit real magnitudes.
+    physical_l1_weight: float = 1.0
     # Relative error to emphasize low-magnitude regions.
     relative_l1_weight: float = 0.3
+    relative_eps: float = 1e-5
     # Graph total-variation to encourage smoothness while allowing shocks.
     smoothness_weight: float = 0.05
     # Optional auxiliary penalty aligning ∇V with E fields when available.

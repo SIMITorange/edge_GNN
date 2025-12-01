@@ -14,6 +14,11 @@ import argparse
 import json
 import os
 import random
+import sys
+from typing import cast
+
+# Ensure the project root directory is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import torch
@@ -23,6 +28,7 @@ from config import get_default_configs
 from src.data import FourierFeatureMapper, MeshGraphDataset, build_splits, collate_graphs, fit_normalizer
 from src.models import build_model
 from src.training import CompositeLoss, Trainer
+from torch_geometric.data import Data
 
 
 def set_seed(seed: int):
@@ -36,7 +42,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train edge-based GNN surrogate.")
     parser.add_argument("--data", type=str, default=None, help="Path to meshgraph_data.h5 (overrides config).")
     parser.add_argument("--device", type=str, default=None, help="cuda or cpu override.")
-    return parser.parse_args()
+    args, _ = parser.parse_known_args()
+    return args
 
 
 def main():
@@ -88,9 +95,9 @@ def main():
         "doping": "log_standard",
         "vds": "standard",
         "ElectrostaticPotential": "standard",
-        "ElectricField_x": "robust",
-        "ElectricField_y": "robust",
-        "SpaceCharge": "robust",
+        "ElectricField_x": "log_standard",
+        "ElectricField_y": "log_standard",
+        "SpaceCharge": "log_standard",
     }
     normalizer = fit_normalizer(train_ds, strategy_map=strategy_map)
 
@@ -102,15 +109,23 @@ def main():
     val_ds.fourier_mapper = fourier_mapper
     test_ds.fourier_mapper = fourier_mapper
 
-    input_dim = len(data_cfg.input_features) + (2 * data_cfg.fourier_features if data_cfg.use_fourier else 0)
-    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg)
+    # Determine input dimension from first sample to ensure correct feature count
+    # This accounts for base features + Fourier features if they are applied
+    sample_data = cast(Data, train_ds[0])
+    input_dim = int(sample_data.x.shape[1])  # type: ignore
+    edge_dim = sample_data.edge_attr.shape[1] if hasattr(sample_data, "edge_attr") and sample_data.edge_attr is not None else getattr(model_cfg, "edge_dim", 0)
+
+    model = build_model(input_dim=input_dim, target_names=data_cfg.prediction_targets, model_cfg=model_cfg, edge_dim=edge_dim)
 
     loss_fn = CompositeLoss(
         target_order=data_cfg.prediction_targets,
         l1_weight=loss_cfg.l1_weight,
+        physical_l1_weight=loss_cfg.physical_l1_weight,
         relative_l1_weight=loss_cfg.relative_l1_weight,
+        relative_eps=loss_cfg.relative_eps,
         smoothness_weight=loss_cfg.smoothness_weight,
         gradient_consistency_weight=loss_cfg.gradient_consistency_weight,
+        normalizer=normalizer,
     )
 
     optimizer = torch.optim.AdamW(

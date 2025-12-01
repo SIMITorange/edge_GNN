@@ -9,13 +9,15 @@ Imports:
     - fourier: Fourier feature mapping for coordinates.
 """
 
-from .dataset import MeshGraphDataset, collate_graphs
+from .dataset import MeshGraphDataset, collate_graphs, build_splits, fit_normalizer
 from .normalization import NormalizationProfile, Normalizer
 from .fourier import FourierFeatureMapper
 
 __all__ = [
     "MeshGraphDataset",
     "collate_graphs",
+    "build_splits",
+    "fit_normalizer",
     "NormalizationProfile",
     "Normalizer",
     "FourierFeatureMapper",
