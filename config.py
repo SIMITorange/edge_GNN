@@ -45,53 +45,59 @@ class DataConfig:
         "ElectricField_x",
         "ElectricField_y",
         "DopingConcentration",
-    )
+    ) # type: ignore
     # Outputs we want the model to regress.
     prediction_targets: List[str] = (
         "ElectrostaticPotential",
         "ElectricField_x",
         "ElectricField_y",
         "SpaceCharge",
-    )
+    ) # type: ignore
     # Node-wise input feature order produced by the dataset.
-    input_features: List[str] = ("x", "y", "doping", "vds")
+    input_features: List[str] = ("x", "y", "doping", "vds") # pyright: ignore[reportAssignmentType]
     # Fourier mapping for coordinates to help capture sharp transitions.
-    fourier_features: int = 8
-    fourier_sigma: float = 1.0
+    fourier_features: int = 8  # Reduce Fourier lift width to speed up IO/computation
+    fourier_sigma: float = 0.5  # �?0.3 改回 0.5
     use_fourier: bool = True
     # Data split proportions (applied at the sheet level).
     train_split: float = 0.8
     val_split: float = 0.1
     test_split: float = 0.1
-    num_workers: int = 0  # PyG DataLoader workers; set >0 if memory allows.
-    pin_memory: bool = False
+    num_workers: int = 4  # PyG DataLoader workers; parallel HDF5 reads
+    pin_memory: bool = True
 
 
 @dataclass
 class ModelConfig:
     """Architecture hyperparameters."""
 
-    hidden_dim: int = 128
-    num_layers: int = 6
+    hidden_dim: int = 128  # �?256 改为 128
+    num_layers: int = 6    # �?10 改为 6
     message_passing_aggr: str = "add"  # options: add | mean | max
-    dropout: float = 0.1
-    heads: int = 4  # for attention-style aggregators inside decoder.
+    dropout: float = 0.05  # Reduced from 0.1 for less regularization (more overfitting allowed)
+    heads: int = 8  # Increased from 4 for more diverse decoder heads
     fourier_dropout: float = 0.0
     layer_norm: bool = True
+    # Additional capacity parameters
+    decoder_hidden: int = 256  # Hidden dim in decoder MLPs
+    use_residual: bool = True  # Use residual connections throughout
 
 
 @dataclass
 class LossConfig:
     """Composite loss weights tailored for multi-physics regression."""
 
-    # Main SmoothL1 on normalized outputs.
-    l1_weight: float = 1.0
-    # Relative error to emphasize low-magnitude regions.
-    relative_l1_weight: float = 0.3
-    # Graph total-variation to encourage smoothness while allowing shocks.
-    smoothness_weight: float = 0.05
-    # Optional auxiliary penalty aligning ∇V with E fields when available.
-    gradient_consistency_weight: float = 0.1
+    # Main SmoothL1 on normalized outputs - increased weight for better base fitting
+    l1_weight: float = 2.0  # Increased from 1.0
+    # Relative error to emphasize low-magnitude regions - increased
+    relative_l1_weight: float = 0.8  # Increased from 0.3; important for field-limited regions
+    # Graph total-variation to encourage smoothness while allowing shocks
+    smoothness_weight: float = 0.08  # Increased from 0.05 for better spatial consistency
+    # Optional auxiliary penalty aligning ∇V with E fields when available
+    gradient_consistency_weight: float = 0.15  # Increased from 0.1 for physics constraint
+    # Additional loss components for overfitting
+    l2_weight: float = 0.0  # No L2 regularization to allow overfitting
+    curvature_weight: float = 0.05  # Penalize high curvature for smoother fields but preserve spikes
 
 
 @dataclass
@@ -99,15 +105,21 @@ class TrainConfig:
     """Training loop parameters."""
 
     device: str = "cuda"
-    epochs: int = 200
+    epochs: int = 400  # Increased from 200 for longer training
     batch_size: int = 1  # Each sheet is a big graph; keep small batches.
-    lr: float = 2e-4
-    weight_decay: float = 1e-5
-    grad_clip: float = 5.0
-    early_stop_patience: int = 30
+    lr: float = 5e-4  # Increased from 2e-4 for faster learning
+    weight_decay: float = 0.0  # Set to 0 for no L2 regularization (allow overfitting)
+    grad_clip: float = 10.0  # Increased from 5.0 to allow larger gradients
+    early_stop_patience: int = 60  # Increased from 30 to train longer before stopping
     save_every: int = 10
     amp: bool = True  # mixed precision toggle.
     seed: int = 42
+    # New optimization parameters
+    use_warmup: bool = True  # Warmup scheduler
+    warmup_epochs: int = 10
+    use_scheduler: bool = True  # Learning rate scheduler
+    scheduler_type: str = "cosine"  # cosine | exponential | linear
+    min_lr: float = 1e-5  # Minimum learning rate for scheduler
 
 
 def get_default_configs() -> Tuple[PathConfig, DataConfig, ModelConfig, LossConfig, TrainConfig]:

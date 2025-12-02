@@ -51,21 +51,28 @@ class MultiHeadDecoder(nn.Module):
     Each expert is a small MLP; gating weights are predicted per node to mix them.
     """
 
-    def __init__(self, hidden_dim: int, heads: int = 4, dropout: float = 0.1):
+    def __init__(self, hidden_dim: int, decoder_hidden: int = 256, heads: int = 4, dropout: float = 0.1):
         super().__init__()
         self.heads = heads
         self.experts = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.Linear(hidden_dim, decoder_hidden),
                     nn.GELU(),
                     nn.Dropout(dropout),
-                    nn.Linear(hidden_dim, 1),
+                    nn.Linear(decoder_hidden, decoder_hidden // 2),
+                    nn.GELU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(decoder_hidden // 2, 1),
                 )
                 for _ in range(heads)
             ]
         )
-        self.gate = nn.Linear(hidden_dim, heads)
+        self.gate = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, heads),
+        )
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
         # [N, heads]
@@ -88,6 +95,7 @@ class EdgeGNN(nn.Module):
         aggr: str = "add",
         dropout: float = 0.1,
         heads: int = 4,
+        decoder_hidden: int = 256,
         layer_norm: bool = True,
     ):
         super().__init__()
@@ -96,11 +104,17 @@ class EdgeGNN(nn.Module):
             nn.Linear(input_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
         )
         self.blocks = nn.ModuleList(
             [ResidualGraphBlock(hidden_dim, aggr=aggr, dropout=dropout, layer_norm=layer_norm) for _ in range(num_layers)]
         )
-        self.decoders = nn.ModuleDict({name: MultiHeadDecoder(hidden_dim, heads=heads, dropout=dropout) for name in self.target_names})
+        self.decoders = nn.ModuleDict({
+            name: MultiHeadDecoder(hidden_dim, decoder_hidden=decoder_hidden, heads=heads, dropout=dropout) 
+            for name in self.target_names
+        })
 
     def forward(self, data) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
         x, edge_index = data.x, data.edge_index
@@ -129,6 +143,7 @@ def build_model(input_dim: int, target_names: Iterable[str], model_cfg) -> EdgeG
         aggr=model_cfg.message_passing_aggr,
         dropout=model_cfg.dropout,
         heads=model_cfg.heads,
+        decoder_hidden=model_cfg.decoder_hidden,
         layer_norm=model_cfg.layer_norm,
     )
 
